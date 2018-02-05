@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include "circle.hpp"
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
@@ -67,6 +68,22 @@ public:
   ///* Sigma point spreading parameter
   double lambda_;
 
+  ///* Measurement dimension
+  int n_z_;
+
+  ///* Sigma points in measurement space
+  MatrixXd Zsig_;
+
+  ///* mean predicted measurement
+  VectorXd z_pred_;
+
+  double iterations;
+
+  Circle circle;
+
+  bool hunting;
+
+  vector<double> hunting_target;
 
   /**
    * Constructor

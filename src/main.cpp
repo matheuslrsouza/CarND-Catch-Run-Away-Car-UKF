@@ -105,22 +105,115 @@ int main()
           
     	  ukf.ProcessMeasurement(meas_package_R);
 
-	  target_x = ukf.x_[0];
-	  target_y = ukf.x_[1];
+        double heading_difference = 0.0;
+        double distance_center = 0.0;
+
+        target_x = ukf.circle.center[0];
+        target_y = ukf.circle.center[1];
+
+        //cout << "hunter: " << hunter_x << ", " << hunter_y << endl;
 
     	  double heading_to_target = atan2(target_y - hunter_y, target_x - hunter_x);
     	  while (heading_to_target > M_PI) heading_to_target-=2.*M_PI; 
     	  while (heading_to_target <-M_PI) heading_to_target+=2.*M_PI;
     	  //turn towards the target
-    	  double heading_difference = heading_to_target - hunter_heading;
+    	  heading_difference = heading_to_target - hunter_heading;
     	  while (heading_difference > M_PI) heading_difference-=2.*M_PI; 
     	  while (heading_difference <-M_PI) heading_difference+=2.*M_PI;
 
-    	  double distance_difference = sqrt((target_y - hunter_y)*(target_y - hunter_y) + (target_x - hunter_x)*(target_x - hunter_x));
+    	  double delta_x_center = target_x - hunter_x;
+        double delta_y_center = target_y - hunter_y;
+
+        if (!ukf.circle.onCenter && target_x != 0) {
+          distance_center = sqrt(delta_y_center*delta_y_center + 
+               delta_x_center*delta_x_center);
+
+          if ((distance_center/ukf.x_[2]) < fabs(0.09)) {
+            cout <<ukf.x_[2]<<"----"<<distance_center<<" >  "<<(distance_center/ukf.x_[2])<< "s"<<endl;
+            ukf.circle.onCenter = true;
+          }
+          cout<<"heading: "<<heading_to_target << " - " << hunter_heading<<" diff: "<<heading_difference<< endl;
+        }
+        
+        if (ukf.circle.onCenter) {
+
+          if (!ukf.hunting) {
+
+            target_x = ukf.x_[0];
+            target_y = ukf.x_[1];
+            double velocity = ukf.x_[2];
+
+            double time_to_reach_border = (velocity/ukf.circle.radius);
+
+            //angular velocity rad/s
+            double w = time_to_reach_border;
+            //displacement rads percorridos
+            double t = time_to_reach_border;
+            double delta_s = time_to_reach_border;
+
+            ukf.hunting = true;
+
+            double heading_to_target = atan2(delta_y_center, delta_x_center);
+            while (heading_to_target > M_PI) heading_to_target-=2.*M_PI; 
+            while (heading_to_target <-M_PI) heading_to_target+=2.*M_PI;
+            //turn towards the target
+            heading_difference = (heading_to_target - hunter_heading) + delta_s;
+            while (heading_difference > M_PI) heading_difference-=2.*M_PI; 
+            while (heading_difference <-M_PI) heading_difference+=2.*M_PI;
+
+            ukf.hunting_target[0] = -ukf.circle.radius * cos((2.*M_PI) - heading_to_target + delta_s);
+            ukf.hunting_target[1] = ukf.circle.radius * sin((2.*M_PI) + heading_to_target + delta_s);
+
+            delta_x_center = ukf.hunting_target[0] - hunter_x;
+            delta_y_center = ukf.hunting_target[1] - hunter_y;
+
+            distance_center = 
+              sqrt(delta_y_center*delta_y_center + 
+                  delta_x_center*delta_x_center);
+
+            cout << "posicao car: " <<target_x<<" "<<target_y<<endl<<
+                "heading_to_target "<<heading_to_target<<endl<<
+                "heading_difference "<<heading_difference<<endl<<
+                "time_to_reach_border "<<time_to_reach_border<<endl<<
+                "delta_s "<<delta_s<<endl;
+            
+          } else {
+            target_x = ukf.x_[0];
+            target_y = ukf.x_[1];
+            double velocity = ukf.x_[2];
+
+            double distance_from_center = sqrt(
+              (hunter_x-ukf.circle.center[0]) * (hunter_x-ukf.circle.center[0]) + 
+              (hunter_y-ukf.circle.center[1]) * (hunter_y-ukf.circle.center[1])
+            );
+
+            target_x = ukf.hunting_target[0];
+            target_y = ukf.hunting_target[1];
+
+            delta_x_center = target_x - hunter_x;
+            delta_y_center = target_y - hunter_y;
+
+            distance_center = 
+              sqrt(delta_y_center*delta_y_center + 
+                  delta_x_center*delta_x_center);
+            
+            double heading_to_target = atan2(delta_y_center, delta_x_center);
+            while (heading_to_target > M_PI) heading_to_target-=2.*M_PI; 
+            while (heading_to_target <-M_PI) heading_to_target+=2.*M_PI;
+            //turn towards the target
+            heading_difference = (heading_to_target - hunter_heading);
+            while (heading_difference > M_PI) heading_difference-=2.*M_PI; 
+            while (heading_difference <-M_PI) heading_difference+=2.*M_PI;
+
+            cout <<" hunting... " <<
+                " distance_from_center " <<distance_from_center <<endl;
+          }
+
+        }
 
           json msgJson;
           msgJson["turn"] = heading_difference;
-          msgJson["dist"] = distance_difference; 
+          msgJson["dist"] = distance_center; 
           auto msg = "42[\"move_hunter\"," + msgJson.dump() + "]";
           // std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
